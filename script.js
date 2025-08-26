@@ -1,5 +1,5 @@
 
-const userName = "AP-"+ Math.floor(Math.random() *10000);
+const userName = "AP-"+ Math.floor(Math.random() * 10000);
 const password = "x";
 
 document.getElementById('user-name').innerHTML = userName;
@@ -48,14 +48,34 @@ let peerConfiguration = {
 
 
 
-const createPeerConnection = ( ) => {
+const createPeerConnection = ( offerObj ) => {
 
     return new Promise(async(resolve,reject) => {
 
         peerConnection = await new RTCPeerConnection(peerConfiguration);
+        
+        remoteStream = new MediaStream()
+        remoteVideo.srcObject = remoteStream;
 
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track,localStream);
+
+        // if(offerObj){
+        //     remoteStream.getTracks().forEach(track => {
+        //         peerConnection.addTrack(track,remoteStream);
+        //     });
+        // }else{
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track,localStream);
+            })
+
+        // }
+
+        peerConnection.addEventListener('signalingstatechange', ( e ) => {
+
+            console.log(e);
+            console.log(peerConnection.signalingState);
+
+
         })
 
         peerConnection.addEventListener('icecandidate', ( e ) => {
@@ -63,17 +83,33 @@ const createPeerConnection = ( ) => {
             console.log(e);
 
             if(e.candidate){
-                socket.emit('sendIceCandidatesToServer',  {
+                socket.emit('sendIceCandidatesToServer',{
                     iceCandidates: e.candidate,
                     iceUserName: userName,
-                    didIOffer,
-
-
+                    didIOffer
                 });
             }
 
 
+        });
+
+        peerConnection.addEventListener('track', e => {
+            console.log("got a track from remote",e);
+
+            e.streams[0].getTracks().forEach(track => {
+                remoteStream.addTrack(track,remoteStream);
+                console.log("Magic !!!!!!!!!!")
+            })
         })
+
+
+        if(offerObj){
+
+        //   console.log("1-->",peerConnection.signalingState);  
+          await peerConnection.setRemoteDescription(offerObj.offer);
+        //   console.log("2-->",peerConnection.signalingState);  
+        
+        }
         resolve();
     });
 
@@ -83,12 +119,7 @@ const createPeerConnection = ( ) => {
 
 const call = async( e ) => {
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video:true
-    });
-    
-    localVideoEl.srcObject = stream;
-    localStream = stream;
+    await fetchUsermedia(false)    
 
     await createPeerConnection();
 
@@ -109,10 +140,77 @@ const call = async( e ) => {
 
 }
 
-const answerOffer = ( offerObj ) => {
+const answerOffer = async( offerObj ) => {
 
-    console.log(offerObj);
+    console.log("inside answer",offerObj);
+    
+    await fetchUsermedia(true);
+    await createPeerConnection(offerObj)
 
+    const answer = await peerConnection.createAnswer();
+    console.log("answer is-->>>" ,answer);
+    peerConnection.setLocalDescription(answer)
+    // console.log("signaling state from answer",peerConnection.signalingState);
+
+    offerObj.answer = answer;
+    
+    const offerIceCandidates = await socket.emitWithAck('newAnswer',offerObj);
+
+    // console.log("icefrom answer",offerIceCandidates);
+
+    offerIceCandidates.forEach(candidate => {
+        peerConnection.addIceCandidate(candidate);
+    })
+
+
+};
+
+
+
+const addAnswer = async(offerObj) => {
+    
+   await peerConnection.setRemoteDescription(offerObj.answer);
+
+}
+
+
+
+const addNewIceCandidate = (iceCandidate) => {
+
+    peerConnection.addIceCandidate(iceCandidate)
+    console.log("*************ice added**************")
+
+}
+
+
+
+function fetchUsermedia(remote){
+
+    return new Promise(async(resolve,reject) => {
+        try {
+        
+            const stream = await navigator.mediaDevices.getUserMedia({
+            video:true
+        });
+        
+            // if(remote){
+            //     remoteVideo.srcObject = stream;
+            //     remoteStream =stream
+
+            // }else{
+                localVideoEl.srcObject = stream;
+                localStream = stream;    
+            // }
+
+            resolve();
+        
+        } catch (error) {
+            console.log(error.message)
+            reject();
+        }
+        
+    });
+    
 }
 
 

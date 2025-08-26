@@ -50,7 +50,32 @@ io.on('connection' ,(socket) => {
             });
             //  console.log(newOffer);   
             socket.broadcast.emit('newOfferAwaiting',offers.slice(-1));
-        })
+        });
+
+    socket.on('newAnswer',(offerObj,ackFunction) => {
+       
+        // console.log(offerObj);
+        const socketToAnswer = connectedSockets.find( s => s.userName === offerObj.offererUserName );
+        
+        if(!socketToAnswer)return;
+
+        const answerSocketId = socketToAnswer.socketId;
+        
+        const offerToUpdate = offers.find( o => o.offererUserName === offerObj.offererUserName );
+        
+        if(!offerToUpdate) {
+            console.log("No offer to update");
+            return;
+        }
+
+        ackFunction(offerToUpdate.offerIceCandidates);
+        
+        offerToUpdate.answer = offerObj.answer;
+        offerToUpdate.answerUserName = userName;
+
+        socket.to(answerSocketId).emit('answerResponse',offerToUpdate);
+
+    });     
 
     socket.on('sendIceCandidatesToServer', iceCandidateObj => {
 
@@ -61,12 +86,35 @@ io.on('connection' ,(socket) => {
 
             if(offerInOffers){
                 offerInOffers.offerIceCandidates.push(iceCandidates);
+
+                if(offerInOffers.answerUserName){
+
+                    const socketToSendTo = connectedSockets.find( s => s.userName === offerInOffers.answerUserName );
+                    
+                    if(socketToSendTo){
+                        socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer',iceCandidates);
+                    }
+
+                }
+
+            }
+            
+        }else{
+            
+            const offerInOffers = offers.find( data => data.answerUserName === iceUserName);
+
+            const socketToSendTo = connectedSockets.find( s => s.userName === offerInOffers.offererUserName );
+                    
+            if(socketToSendTo){
+                socket.to(socketToSendTo.socketId).emit('receivedIceCandidateFromServer',iceCandidates);
             }
 
         }
 
-        console.log(offers);
-    })    
+        // console.log(offers);
+    });
+    
+    
 
 
 })

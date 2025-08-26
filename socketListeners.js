@@ -5,14 +5,31 @@ socket.on('availableOffers', (offers) => {
     console.log("available Offers",offers);
     createOfferEls(offers);
 
-})
+});
 
 socket.on('newOfferAwaiting',(offers)=>{
 
      createOfferEls(offers);   
+});
 
+
+
+socket.on('answerResponse', (offerObj) => {
+
+    console.log("answerResponse",offerObj);
+    addAnswer(offerObj);
+})
+
+
+
+socket.on('receivedIceCandidateFromServer',(iceCandidate) => {
+
+    addNewIceCandidate(iceCandidate);
+    console.log("ice candidates came through",iceCandidate);
 
 })
+
+
 
 
 function createOfferEls(offers){
